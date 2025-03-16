@@ -1,0 +1,26 @@
+# Build section. It specifies the build process of the project
+build:
+  deps:
+    - dst: /opt/jitsi
+      path:
+        src: ../../genesis_jitsi
+    - dst: /var/lib/genesis/bootstrap/scripts/00-jitsi-bootstrap.sh
+      path:
+        src: ./images/bootstrap.sh
+
+  # List of elements in the project
+  elements:
+    # List of images in the element
+    - images:
+      - name: genesis-jitsi
+        format: raw
+
+        # OS profile for the image
+        profile: genesis_base
+
+        # Provisioning script
+        script: images/install.sh
+
+        # Override image build parameters, for instance Packer parameters
+        override:
+          disk_size: "10G"
