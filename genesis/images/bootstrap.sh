@@ -24,12 +24,13 @@ set -o pipefail
 
 
 while [ ! -f /etc/genesis_init.txt ]; do sleep 1; done
-JITSI_HOST=$(< /etc/genesis_init.txt)
+source /etc/genesis_init.txt
 if [[ -z "$JITSI_HOST" ]]; then
     echo "Error: JITSI_HOST is empty, /etc/genesis_init.txt may be empty or missing." >&2
     exit 1
 fi
 echo "Config found: host is $JITSI_HOST"
+JITSI_BRANDING="${JITSI_BRANDING:-true}"
 
 if dpkg -s jitsi-meet &>/dev/null; then
     echo 'jitsi-meet is is alredy installed, looks like we already bootstrapped, exit.'
@@ -55,9 +56,14 @@ config.whiteboard = {
   enabled: true,
   collabServerBaseUrl: 'https://$JITSI_HOST',
 };
+EOF
+
+if [ "$JITSI_BRANDING" == "true" ] ; then
+cat >> /etc/jitsi/meet/$JITSI_HOST-config.js <<EOF
 
 config.dynamicBrandingUrl = '/static/branding.json';
 EOF
+fi
 
 rsync -a /opt/jitsi/static/ /usr/share/jitsi-meet/
 
