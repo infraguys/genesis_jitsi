@@ -1,0 +1,156 @@
+name: "jitsi"
+uuid: "f02b4cd9-91b9-4bc1-b3b8-3fe4012493ab"
+description: "Genesis Jitsi element"
+schema_version: 1
+version: "{{version}}"
+api_version: "v1"
+
+requirements:
+  core:
+    from_version: "0.0.0"
+
+imports:
+  core_public_domain:
+    element: "$core"
+    kind: "resource"
+    link: "$core.dns.domains.$public_domain"
+
+resources:
+  $core.compute.nodes:
+    genesis_jitsi:
+      name: f"meet.{$jitsi.imports.$core_public_domain:name}"
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      root_disk_size: 20
+      cores: 4
+      ram: 8000
+      image: https://repository.genesis-core.tech/genesis-elements/genesis-jitsi/{{ version }}/images/genesis-jitsi.raw.gz
+
+  $core.config.configs:
+    genesis_jitsi_config:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      path: /etc/genesis_init.txt
+      target:
+        kind: node
+        node: $core.compute.nodes.$genesis_jitsi:uuid
+      body:
+        kind: text
+        content: f"meet.{$jitsi.imports.$core_public_domain:name}"
+
+  $core.network.lb:
+    jitsi_lb:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      type:
+        kind: core
+        ram: 1024
+        cpu: 2
+  $core.network.lb.$jitsi_lb.backend_pools:
+    jitsi_backend_https:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      endpoints:
+        - kind: host
+          host: $core.compute.nodes.$genesis_jitsi:default_network:ipv4
+          port: 443
+    jitsi_backend_udp_10000:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      endpoints:
+        - kind: host
+          host: $core.compute.nodes.$genesis_jitsi:default_network:ipv4
+          port: 10000
+    jitsi_backend_udp_3478:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      endpoints:
+        - kind: host
+          host: $core.compute.nodes.$genesis_jitsi:default_network:ipv4
+          port: 3478
+  $core.network.lb.$jitsi_lb.vhosts:
+    jitsi_http:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      domains:
+        - f"meet.{$jitsi.imports.$core_public_domain:name}"
+        - f"www.meet.{$jitsi.imports.$core_public_domain:name}"
+      protocol: http
+      port: 80
+    jitsi_https:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      domains:
+        - f"meet.{$jitsi.imports.$core_public_domain:name}"
+        - f"www.meet.{$jitsi.imports.$core_public_domain:name}"
+      protocol: https
+      port: 443
+      cert:
+        kind: raw
+        crt: $core.secret.certificates.jitsi_cert:cert
+        key: $core.secret.certificates.jitsi_cert:key
+    jitsi_udp_10000:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      protocol: udp
+      port: 10000
+    jitsi_udp_3478:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb:uuid
+      protocol: udp
+      port: 3478
+  $core.network.lb.$jitsi_lb.vhosts.$jitsi_http.routes:
+    jitsi_http_route:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb.vhosts.$jitsi_http:uuid
+      condition:
+        kind: prefix
+        value: /
+        actions:
+          - kind: redirect
+            url: f"https://meet.{$jitsi.imports.$core_public_domain:name}"
+  $core.network.lb.$jitsi_lb.vhosts.$jitsi_https.routes:
+    jitsi_https_route:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb.vhosts.$jitsi_https:uuid
+      condition:
+        kind: prefix
+        value: /
+        actions:
+          - kind: backend
+            pool: $core.network.lb.$jitsi_lb.backend_pools.$jitsi_backend_https:uuid
+            protocol:
+              kind: https
+              verify: false
+  $core.network.lb.$jitsi_lb.vhosts.$jitsi_udp_10000.routes:
+    jitsi_udp_10000_route:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb.vhosts.$jitsi_udp_10000:uuid
+      condition:
+        kind: raw
+        actions:
+          - kind: backend
+            pool: $core.network.lb.$jitsi_lb.backend_pools.$jitsi_backend_udp_10000:uuid
+  $core.network.lb.$jitsi_lb.vhosts.$jitsi_udp_3478.routes:
+    jitsi_udp_3478_route:
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      parent: $core.network.lb.$jitsi_lb.vhosts.$jitsi_udp_3478:uuid
+      condition:
+        kind: raw
+        actions:
+          - kind: backend
+            pool: $core.network.lb.$jitsi_lb.backend_pools.$jitsi_backend_udp_3478:uuid
+  $jitsi.imports.$core_public_domain.records:
+    jitsi_a_record:
+      domain: "$jitsi.imports.$core_public_domain:uuid"
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      type: "A"
+      record:
+        kind: "A"
+        name: "meet"
+        address: "$core.network.lb.$jitsi_lb:index(ipsv4, 0)"
+  $core.secret.certificates:
+    jitsi_cert:
+      name: jitsi_cert
+      project_id: "12345678-c625-4fee-81d5-f691897b8142"
+      email: user@geneis-core.tech
+      domains:
+        f"meet.{$jitsi.imports.$core_public_domain:name}"
+        f"*.meet.{$jitsi.imports.$core_public_domain:name}"

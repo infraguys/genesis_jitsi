@@ -13,7 +13,7 @@ build:
     # List of images in the element
     - images:
       - name: genesis-jitsi
-        format: raw
+        format: gz
 
         # OS profile for the image
         profile: genesis_base
