@@ -34,7 +34,11 @@ resources:
         node: $core.compute.nodes.$genesis_jitsi:uuid
       body:
         kind: text
-        content: f"meet.{$jitsi.imports.$core_public_domain:name}"
+        content: |
+          f"
+          JITSI_HOST=meet.{$jitsi.imports.$core_public_domain:name}
+          JITSI_BRANDING=false
+          "
 
   $core.network.lb:
     jitsi_lb:
