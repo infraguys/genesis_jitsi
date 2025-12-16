@@ -22,6 +22,9 @@ set -o pipefail
 
 [[ "$EUID" == 0 ]] || exec sudo -s "$0" "$@"
 
+LUA="5.3"
+JDK="17"
+
 # Update the system
 apt update
 apt upgrade -y
@@ -34,4 +37,61 @@ curl https://download.jitsi.org/jitsi-key.gpg.key | \
 echo "deb [signed-by=/usr/share/keyrings/jitsi-keyring.gpg] https://download.jitsi.org stable/" | \
     tee /etc/apt/sources.list.d/jitsi-stable.list > /dev/null
 apt update
-# apt install -y jitsi-meet
+
+apt-get -y install openjdk-$JDK-jre-headless lua$LUA libnginx-mod-stream nginx nodejs
+
+# Download, but don't install
+apt-get -y --install-recommends install --download-only jitsi-meet prosody
+
+cat >>/etc/systemd/system.conf <<EOF
+
+DefaultLimitNOFILE=524288
+DefaultLimitNPROC=65000
+DefaultTasksMax=65000
+EOF
+
+# Excalidraw
+apt install -y npm
+adduser excalidraw --system --group --disabled-password --shell /bin/bash \
+    --home /home/excalidraw
+su -l excalidraw <<EOF
+    git clone https://github.com/jitsi/excalidraw-backend.git
+    cd excalidraw-backend
+    echo -n "PORT=3002" >.env.production
+    sed -i '/collectDefaultMetrics/ i \    createServer: false,' src/index.ts
+
+    npm install
+    npm run build
+EOF
+
+cat >/etc/systemd/system/excalidraw.service <<EOF
+[Unit]
+Description=Excalidraw backend
+After=network-online.target
+
+[Service]
+User=excalidraw
+Group=excalidraw
+WorkingDirectory=/home/excalidraw/excalidraw-backend
+ExecStart=npm start
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable excalidraw.service
+
+mkdir -p /etc/jitsi/meet/jaas/
+cat >/etc/jitsi/meet/jaas/excalidraw.conf <<EOF
+    location = /socket.io/ {
+        proxy_pass http://127.0.0.1:3002/socket.io/?\$args;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$http_host;
+        tcp_nodelay on;
+    }
+EOF
