@@ -5,8 +5,6 @@ on:
 
 env:
   ARTIFACTS_PATH: artifacts
-  PROJECT_NAME: genesis_jitsi
-  REPO_ENDPOINT_PUT: http://10.20.0.1:8082
 
 jobs:
   Build:
@@ -18,27 +16,25 @@ jobs:
         with:
           fetch-depth: 30
       - name: Build Genesis Jitsi
+        env:
+          PUSH_CFG: ${{ secrets.PUSH_CFG }}
         run: |
           set -eux
 
           mkdir -p ${ARTIFACTS_PATH}
 
-          # Install DevTools
-          python3 -m venv .venv
-          source .venv/bin/activate
-          pip install genesis-devtools
-
+          source ~/.profile
           VERSION="$(genesis get-version .)"
 
-          genesis build $(pwd)
+          genesis build $(pwd) --inventory
 
-          # Upload the VM image
-          curl -X PUT --upload-file output/genesis-jitsi.raw.gz \
-            $REPO_ENDPOINT_PUT/${PROJECT_NAME}/${VERSION}/genesis-jitsi.raw.gz
+          # Decode and write the push configuration
+          echo "$PUSH_CFG" | base64 -d > genesis/genesis.push.yaml
+          genesis push -c genesis/genesis.push.yaml -t local -f --latest
 
           # Temporary upload step is done in the build script
           echo "${VERSION}" > "${ARTIFACTS_PATH}/version.txt"
-          mv output/*.raw.gz "${ARTIFACTS_PATH}/"
+          mv output/images/*.raw.gz "${ARTIFACTS_PATH}/"
       - name: Set current date as env variable
         id: date
         run: |
